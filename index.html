@@ -130,8 +130,8 @@ body {
   color: var(--text);
 }
 #loginPage .card {
-  background: rgba(255, 255, 255, 0.20); /* Transparente */
-  backdrop-filter: blur(10px); /* Efecto glass */
+  background: rgba(255, 255, 255, 0.20); 
+  backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
@@ -352,8 +352,9 @@ style="
         </label>
         <div class="flex gap-3" style="margin-top:10px;">
           <button id="btnLogin" class="btn btn-primary" style="flex:1;">Iniciar sesión</button>
+          <button id="btnDemo" class="btn btn-ghost">invitado</button>
         </div>
-        <p class="small mt-3">Bienvenido al sistema de creciones de encuestas </p>
+        <p class="small mt-3">Biemvenido a SmartForm  el sistema de creaciones de encuestas</p>
       </div>
     </div>
 
@@ -391,9 +392,7 @@ style="
   </div>
 
 <script>
-/* -------------------------
-   Utils & Theme (sin cambios)
-   ------------------------- */
+
 (function themeInit(){
   const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   const stored = localStorage.getItem('sf_theme');
@@ -418,7 +417,7 @@ function timeNow(){ return new Date().toISOString(); }
 function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 function escapeAttr(s){ return escapeHtml(s).replace(/\n/g,' '); }
 
-/* DOM refs */
+
 let usuario = {};
 document.getElementById('videoLogin').style.display='block';
 document.querySelector('.app-shell').style.paddingLeft='0px';
@@ -432,7 +431,7 @@ const modalOk = el('#modalOk');
 const modalCancel = el('#modalCancel');
 const fabHelp = el('#fabHelp');
 
-/* Modal helpers */
+
 function serverShow(options){
   modalContent.innerHTML = '';
   modalOk.style.display = 'none';
@@ -469,7 +468,7 @@ function serverConfirm(message, { title } = {}){
   });
 }
 
-/* Event bindings (some will be used after Firebase init) */
+
 el('#btnLogin').addEventListener('click', doLogin);
 el('#btnDemo').addEventListener('click', ()=> {
   el('#nombre').value = 'Alumno Invitado';
@@ -484,23 +483,16 @@ elAll('.nav-item').forEach(n => {
   n.addEventListener('click', ()=> {
     const nav = n.getAttribute('data-nav');
     if(nav) navigate(nav);
-    // active state
+    
     elAll('.nav-item').forEach(x=>x.classList.remove('active'));
     n.classList.add('active');
   });
 });
 
-/* -------------------------
-   FIRESTORE DB (compat SDK will be added below)
-   ------------------------- */
 
-/*
-  The DB object below uses firebase.firestore() (compat)
-  Methods return Promises. Use await DB.loadSurveys(), await DB.addSurvey(...)
-*/
 
 const DB = {
-  // Load all surveys (returns array)
+ 
   async loadSurveys() {
     try {
       const snap = await firebase.firestore().collection("encuestas").orderBy("createdAt", "desc").get();
@@ -512,14 +504,14 @@ const DB = {
   },
 
   async saveSurveys(surveys) {
-    // Replace whole collection (optional). We'll write each doc by id.
+   
     const col = firebase.firestore().collection("encuestas");
     const batch = firebase.firestore().batch();
     try {
-      // Delete existing (careful: for small datasets only)
+     
       const old = await col.get();
       old.docs.forEach(docSnap => batch.delete(docSnap.ref));
-      // Add new
+      
       surveys.forEach(s => {
         const ref = col.doc(s.id);
         batch.set(ref, s);
@@ -589,9 +581,6 @@ const DB = {
   }
 };
 
-/* -------------------------
-   App behaviour (adapted to async DB)
-   ------------------------- */
 
 function startApp(){
   document.getElementById('videoLogin').style.display='none';
@@ -651,7 +640,7 @@ function navigate(name){
   }
 }
 
-/* Render inicio */
+
 async function renderInicio(){
   contentArea.innerHTML = `
     <div class="card p-4" style="margin-bottom:18px; display:flex; align-items:center; gap:22px;">
@@ -702,9 +691,9 @@ async function renderInicio(){
   el('#recentSurveys').innerHTML = out;
 }
 
-/* Crear / editar encuesta */
+
 function renderCreator(existingId){
-  // Note: this function contains inner async usages (we'll fetch when needed)
+  
   (async () => {
     const allSurveys = await DB.loadSurveys();
     const editing = existingId ? allSurveys.find(s=>s.id===existingId) : null;
@@ -862,7 +851,7 @@ function renderCreator(existingId){
   })();
 }
 
-/* Listado de encuestas */
+
 async function renderList(){
   const surveys = await DB.loadSurveys();
   contentArea.innerHTML = `
@@ -903,7 +892,7 @@ async function renderList(){
   }));
 }
 
-/* Responder lista */
+
 async function renderResponderList(){
   const surveys = await DB.loadSurveys();
   contentArea.innerHTML = `
@@ -915,7 +904,7 @@ async function renderResponderList(){
   elAll('[data-take]').forEach(b => b.addEventListener('click', ()=> renderTakeSurvey(b.getAttribute('data-take'))));
 }
 
-/* Tomar encuesta */
+
 function renderTakeSurvey(id){
   (async () => {
     const s = (await DB.loadSurveys()).find(x=>x.id===id);
@@ -988,7 +977,6 @@ function renderTakeSurvey(id){
   })();
 }
 
-/* Reportes */
 async function renderReportes(){
   const surveys = await DB.loadSurveys();
   const responses = await DB.loadResponses();
@@ -1045,7 +1033,6 @@ async function showReportDetail(surveyId){
   modalCancel.onclick = ()=> { modalRoot.style.display='none'; };
 }
 
-/* Preview */
 function showPreview(survey){
   let html = `<h4 style="margin:0 0 8px 0;">${escapeHtml(survey.title)}</h4>`;
   survey.questions.forEach((q,i)=>{
@@ -1060,7 +1047,6 @@ function showPreview(survey){
   modalRoot.style.display = 'flex';
 }
 
-/* Help modal */
 function showHelpModal(){
   const tips = [
     'Ayuda para el login: Para continuar escribe tus datos en los campos y confirma el acceso Si algo no avanza revisa que la información esté completa y vuelve a intentar.  Ayuda del sistema:  usa el menú para moverte entre las secciones Crea nuevas encuestas y agrega preguntas con el botón de añadirComparte el enlace para que otras personas respondan Consulta los resultados en la sección de respuestas y ajusta tu diseño en cualquier momento',
@@ -1076,7 +1062,6 @@ function showHelpModal(){
   modalRoot.style.display = 'flex';
 }
 
-/* Perfil (mantengo localStorage para fotos/perfil) */
 function renderPerfil(){
   const key = 'sf_profile_' + (usuario.correo || 'anon');
   const stored = JSON.parse(localStorage.getItem(key) || 'null');
@@ -1140,7 +1125,6 @@ function renderPerfil(){
   });
 }
 
-/* Service worker registration (igual) */
 if('serviceWorker' in navigator){
   const sw = `self.addEventListener('install', e=>{ self.skipWaiting(); });
   self.addEventListener('activate', e=>{ self.clients.claim(); });
@@ -1169,7 +1153,6 @@ function activateSection(id) {
 }
 updateFabVisibility();
 
-/* Weather loader (igual) */
 async function loadDashboardWeather(){
   const LAT=27.486, LON=-109.939, TZ="America/Hermosillo";
 
@@ -1212,12 +1195,11 @@ async function loadDashboardWeather(){
 
 </script>
 
-<!-- Firebase compat SDKs (no modules, compatibles con este archivo) -->
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
 <script>
-  // Tu configuración (ya la tenías). Si la quieres ocultar, utiliza env/server later.
+ 
   const firebaseConfig = {
     apiKey: "AIzaSyCBiiY9GSlF-7r3wjBwcLCq5jyxKVOjAAE",
     authDomain: "smartform-ee4bb.firebaseapp.com",
@@ -1228,19 +1210,14 @@ async function loadDashboardWeather(){
     measurementId: "G-07XSZSSCQ5"
   };
 
-  // Inicializar Firebase (compat)
   try {
     firebase.initializeApp(firebaseConfig);
-    // firebase.analytics(); // opcional
+   
   } catch(e) {
     console.warn("firebase initialize error (si ya está inicializado está bien):", e);
   }
-
-  // Nota: DB arriba ya usa firebase.firestore() por eso no necesitamos exponer db global aquí.
-  // Si quieres, puedes exponerlo:
   window.firestore = firebase.firestore();
 </script>
 
 </body>
 </html>
-
