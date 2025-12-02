@@ -36,7 +36,7 @@ Please report it immediately.
 
 Send an email or message to the SmartForm security team:
 
-**Email:** `smartform.security@proyecto.com`  
+**Email:** `smartform591@gmail.com`  
 *(replace with a real contact if applicable)*
 
 ### What to expect
