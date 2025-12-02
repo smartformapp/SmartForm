@@ -162,7 +162,6 @@ body {
   background: rgba(255,255,255,0.08); 
   color: var(--text);
 }
-- }
 
  
 .fab {
@@ -393,7 +392,9 @@ style="
   </div>
 
 <script>
-
+/* -------------------------
+   Utils & Theme (sin cambios)
+   ------------------------- */
 (function themeInit(){
   const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   const stored = localStorage.getItem('sf_theme');
@@ -411,18 +412,6 @@ style="
   }
 })();
 
-
-const DB = {
-  saveSurveys(surveys) { localStorage.setItem('sf_surveys', JSON.stringify(surveys || [])); },
-  loadSurveys() { try { return JSON.parse(localStorage.getItem('sf_surveys')||'[]'); } catch { return []; } },
-  saveResponses(res) { localStorage.setItem('sf_responses', JSON.stringify(res || [])); },
-  loadResponses() { try { return JSON.parse(localStorage.getItem('sf_responses')||'[]'); } catch { return []; } },
-  addSurvey(s) { const arr = DB.loadSurveys(); arr.unshift(s); DB.saveSurveys(arr); },
-  updateSurvey(id, s) { const arr = DB.loadSurveys().map(x=>x.id===id? s : x); DB.saveSurveys(arr); },
-  deleteSurvey(id) { const arr = DB.loadSurveys().filter(x=>x.id!==id); DB.saveSurveys(arr); },
-  addResponse(r) { const arr = DB.loadResponses(); arr.unshift(r); DB.saveResponses(arr); },
-};
-
 function uid(prefix='id'){ return prefix + '_' + Math.random().toString(36).slice(2,10); }
 function el(q){ return document.querySelector(q); }
 function elAll(q){ return Array.from(document.querySelectorAll(q)); }
@@ -430,11 +419,11 @@ function timeNow(){ return new Date().toISOString(); }
 function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 function escapeAttr(s){ return escapeHtml(s).replace(/\n/g,' '); }
 
-
+/* DOM refs */
 let usuario = {};
-    document.getElementById('videoLogin').style.display='block';
-    document.querySelector('.app-shell').style.paddingLeft='0px';
-    document.querySelector('.side-nav').style.display='none'; 
+document.getElementById('videoLogin').style.display='block';
+document.querySelector('.app-shell').style.paddingLeft='0px';
+document.querySelector('.side-nav').style.display='none'; 
 const loginPage = el('#loginPage');
 const app = el('#app');
 const contentArea = el('#contentArea');
@@ -444,9 +433,8 @@ const modalOk = el('#modalOk');
 const modalCancel = el('#modalCancel');
 const fabHelp = el('#fabHelp');
 
-
+/* Modal helpers */
 function serverShow(options){
- 
   modalContent.innerHTML = '';
   modalOk.style.display = 'none';
   modalCancel.style.display = 'none';
@@ -482,7 +470,7 @@ function serverConfirm(message, { title } = {}){
   });
 }
 
-
+/* Event bindings (some will be used after Firebase init) */
 el('#btnLogin').addEventListener('click', doLogin);
 el('#btnDemo').addEventListener('click', ()=> {
   el('#nombre').value = 'Alumno Invitado';
@@ -492,7 +480,6 @@ el('#btnDemo').addEventListener('click', ()=> {
 el('#btnTheme').addEventListener('click', ()=> window.setTheme());
 fabHelp.addEventListener('click', showHelpModal);
 el('#btnLogoutSmall').addEventListener('click', ()=> logout());
-
 
 elAll('.nav-item').forEach(n => {
   n.addEventListener('click', ()=> {
@@ -504,24 +491,108 @@ elAll('.nav-item').forEach(n => {
   });
 });
 
+/* -------------------------
+   FIRESTORE DB (compat SDK will be added below)
+   ------------------------- */
 
-async function doLogin(){
-  const nombre = el('#nombre').value.trim();
-  const correo = el('#correo').value.trim();
-  const rol = el('#rol').value;
-  if(!nombre || !correo || !rol) return serverAlert('Completa todos los campos', { title: 'Error' });
+/*
+  The DB object below uses firebase.firestore() (compat)
+  Methods return Promises. Use await DB.loadSurveys(), await DB.addSurvey(...)
+*/
 
-  if(rol === 'maestro' && !(/\bedu\b|\binstitucional\b/.test(correo))){
-    const ok = await serverConfirm('No parece un correo institucional. ¿Deseas continuar igual?', { title: 'Verificar correo' });
-    if(!ok) return;
+const DB = {
+  // Load all surveys (returns array)
+  async loadSurveys() {
+    try {
+      const snap = await firebase.firestore().collection("encuestas").orderBy("createdAt", "desc").get();
+      return snap.docs.map(d => d.data());
+    } catch (e) {
+      console.error("loadSurveys error", e);
+      return [];
+    }
+  },
+
+  async saveSurveys(surveys) {
+    // Replace whole collection (optional). We'll write each doc by id.
+    const col = firebase.firestore().collection("encuestas");
+    const batch = firebase.firestore().batch();
+    try {
+      // Delete existing (careful: for small datasets only)
+      const old = await col.get();
+      old.docs.forEach(docSnap => batch.delete(docSnap.ref));
+      // Add new
+      surveys.forEach(s => {
+        const ref = col.doc(s.id);
+        batch.set(ref, s);
+      });
+      await batch.commit();
+    } catch (e) {
+      console.error("saveSurveys error", e);
+    }
+  },
+
+  async addSurvey(survey) {
+    try {
+      await firebase.firestore().collection("encuestas").doc(survey.id).set(survey);
+    } catch (e) {
+      console.error("addSurvey error", e);
+    }
+  },
+
+  async updateSurvey(id, survey) {
+    try {
+      await firebase.firestore().collection("encuestas").doc(id).set(survey);
+    } catch (e) {
+      console.error("updateSurvey error", e);
+    }
+  },
+
+  async deleteSurvey(id) {
+    try {
+      await firebase.firestore().collection("encuestas").doc(id).delete();
+    } catch (e) {
+      console.error("deleteSurvey error", e);
+    }
+  },
+
+  async loadResponses() {
+    try {
+      const snap = await firebase.firestore().collection("respuestas").orderBy("submittedAt", "desc").get();
+      return snap.docs.map(d => d.data());
+    } catch (e) {
+      console.error("loadResponses error", e);
+      return [];
+    }
+  },
+
+  async saveResponses(responses) {
+    const col = firebase.firestore().collection("respuestas");
+    const batch = firebase.firestore().batch();
+    try {
+      const old = await col.get();
+      old.docs.forEach(docSnap => batch.delete(docSnap.ref));
+      responses.forEach(r => {
+        const ref = col.doc(r.id);
+        batch.set(ref, r);
+      });
+      await batch.commit();
+    } catch (e) {
+      console.error("saveResponses error", e);
+    }
+  },
+
+  async addResponse(r) {
+    try {
+      await firebase.firestore().collection("respuestas").doc(r.id).set(r);
+    } catch (e) {
+      console.error("addResponse error", e);
+    }
   }
+};
 
- 
-  const storedProfile = JSON.parse(localStorage.getItem('sf_profile_' + correo) || 'null');
-  usuario = Object.assign({ nombre, correo, rol, grupo:'', especialidad:'', photo:'' }, storedProfile || {});
-  startApp();
-}
-
+/* -------------------------
+   App behaviour (adapted to async DB)
+   ------------------------- */
 
 function startApp(){
   document.getElementById('videoLogin').style.display='none';
@@ -535,6 +606,21 @@ function startApp(){
   navigate('inicio');
 }
 
+async function doLogin(){
+  const nombre = el('#nombre').value.trim();
+  const correo = el('#correo').value.trim();
+  const rol = el('#rol').value;
+  if(!nombre || !correo || !rol) return serverAlert('Completa todos los campos', { title: 'Error' });
+
+  if(rol === 'maestro' && !(/\bedu\b|\binstitucional\b/.test(correo))){
+    const ok = await serverConfirm('No parece un correo institucional. ¿Deseas continuar igual?', { title: 'Verificar correo' });
+    if(!ok) return;
+  }
+
+  const storedProfile = JSON.parse(localStorage.getItem('sf_profile_' + correo) || 'null');
+  usuario = Object.assign({ nombre, correo, rol, grupo:'', especialidad:'', photo:'' }, storedProfile || {});
+  startApp();
+}
 
 async function logout(){
   const ok = await serverConfirm('¿Estás seguro de que quieres cerrar sesión?', { title:'Cerrar sesión' });
@@ -554,7 +640,6 @@ async function logout(){
   }, 700);
 }
 
-
 function navigate(name){
   switch(name){
     case 'inicio': return renderInicio();
@@ -567,7 +652,8 @@ function navigate(name){
   }
 }
 
-function renderInicio(){
+/* Render inicio */
+async function renderInicio(){
   contentArea.innerHTML = `
     <div class="card p-4" style="margin-bottom:18px; display:flex; align-items:center; gap:22px;">
   <div id="w_icon" style="font-size:2.5rem;">⛅</div>
@@ -612,161 +698,174 @@ function renderInicio(){
   `;
   loadDashboardWeather();
 
-  const rs = DB.loadSurveys().slice(0,5);
+  const rs = (await DB.loadSurveys()).slice(0,5);
   const out = rs.length ? `<ul style="margin-top:8px;">${rs.map(s=>`<li style="padding:6px 0;"><strong>${escapeHtml(s.title)}</strong> • ${new Date(s.createdAt).toLocaleString()}</li>`).join('')}</ul>` : '<p class="small mt-2">No hay encuestas todavía.</p>';
   el('#recentSurveys').innerHTML = out;
 }
 
-
+/* Crear / editar encuesta */
 function renderCreator(existingId){
-  const editing = existingId ? DB.loadSurveys().find(s=>s.id===existingId) : null;
-  const draft = editing ? editing : { id: uid('survey'), title:'', createdAt: timeNow(), createdBy: usuario.nombre, questions: [] };
-  contentArea.innerHTML = `
-    <div style="display:grid; grid-template-columns:1fr 320px; gap:12px;">
-      <div>
-        <h3 style="margin:0 0 8px 0; font-weight:700;">Editor de encuesta</h3>
-        <label>Título</label>
-        <input id="surveyTitle" value="${escapeAttr(draft.title)}" placeholder="Título de la encuesta" />
-        <div id="questionList" style="margin-top:12px;"></div>
-        <div style="margin-top:12px;">
-          <button id="btnAddQ" class="btn btn-primary">+ Añadir pregunta</button>
-          <button id="btnSaveSurvey" class="btn btn-primary" style="margin-left:8px;">Guardar encuesta</button>
-          ${editing ? `<button id="btnDeleteSurvey" class="btn" style="background:#ef4444;color:white;margin-left:8px;">Borrar</button>` : ''}
-          <button id="btnPreview" class="btn btn-ghost" style="margin-left:8px;">Vista previa</button>
+  // Note: this function contains inner async usages (we'll fetch when needed)
+  (async () => {
+    const allSurveys = await DB.loadSurveys();
+    const editing = existingId ? allSurveys.find(s=>s.id===existingId) : null;
+    const draft = editing ? editing : { id: uid('survey'), title:'', createdAt: timeNow(), createdBy: usuario.nombre, questions: [] };
+    contentArea.innerHTML = `
+      <div style="display:grid; grid-template-columns:1fr 320px; gap:12px;">
+        <div>
+          <h3 style="margin:0 0 8px 0; font-weight:700;">Editor de encuesta</h3>
+          <label>Título</label>
+          <input id="surveyTitle" value="${escapeAttr(draft.title)}" placeholder="Título de la encuesta" />
+          <div id="questionList" style="margin-top:12px;"></div>
+          <div style="margin-top:12px;">
+            <button id="btnAddQ" class="btn btn-primary">+ Añadir pregunta</button>
+            <button id="btnSaveSurvey" class="btn btn-primary" style="margin-left:8px;">Guardar encuesta</button>
+            ${editing ? `<button id="btnDeleteSurvey" class="btn" style="background:#ef4444;color:white;margin-left:8px;">Borrar</button>` : ''}
+            <button id="btnPreview" class="btn btn-ghost" style="margin-left:8px;">Vista previa</button>
+          </div>
         </div>
+        <aside>
+          <h4 style="margin:0 0 8px 0; font-weight:700;">Constructor</h4>
+          <div class="small">Tipos de pregunta: Opción única, Selección múltiple, Texto</div>
+          <div style="margin-top:12px;">
+            <h5 style="margin:0 0 6px 0; font-weight:700;">Encuestas guardadas</h5>
+            <div id="miniSaved" class="small">Cargando...</div>
+          </div>
+        </aside>
       </div>
-      <aside>
-        <h4 style="margin:0 0 8px 0; font-weight:700;">Constructor</h4>
-        <div class="small">Tipos de pregunta: Opción única, Selección múltiple, Texto</div>
-        <div style="margin-top:12px;">
-          <h5 style="margin:0 0 6px 0; font-weight:700;">Encuestas guardadas</h5>
-          <div id="miniSaved" class="small">Cargando...</div>
-        </div>
-      </aside>
-    </div>
-  `;
-  let survey = JSON.parse(JSON.stringify(draft));
-  renderQuestionList();
-  renderMiniSaved();
-
-  el('#btnAddQ').addEventListener('click', ()=> {
-    survey.questions.push({ id: uid('q'), type: 'single', text: 'Pregunta nueva', options: ['Opción 1','Opción 2'] });
+    `;
+    let survey = JSON.parse(JSON.stringify(draft));
     renderQuestionList();
-  });
+    await renderMiniSaved();
 
-  el('#btnSaveSurvey').addEventListener('click', async ()=> {
-    const title = el('#surveyTitle').value.trim();
-    if(!title) return serverAlert('Agrega un título a la encuesta', { title: 'Guardar' });
-    survey.title = title; survey.createdAt = survey.createdAt || timeNow(); survey.createdBy = usuario.nombre;
-    
-    serverShow({ loading: 'Guardando encuesta...', message: 'Hablando con el servidor...' });
-    setTimeout(()=> {
-      if(editing) DB.updateSurvey(survey.id, survey);
-      else DB.addSurvey(survey);
-      modalRoot.style.display = 'none';
-      serverAlert('Encuesta guardada ✅', { title:'Listo' });
-      navigate('formularios');
-    }, 600);
-  });
+    el('#btnAddQ').addEventListener('click', ()=> {
+      survey.questions.push({ id: uid('q'), type: 'single', text: 'Pregunta nueva', options: ['Opción 1','Opción 2'] });
+      renderQuestionList();
+    });
 
-  if(editing){
-    el('#btnDeleteSurvey').addEventListener('click', async ()=> {
-      const ok = await serverConfirm('¿Eliminar encuesta?', { title:'Borrar' });
-      if(!ok) return;
-      serverShow({ loading:'Eliminando...', message:'Solicitando al servidor...' });
-      setTimeout(()=> {
-        DB.deleteSurvey(editing.id);
+    el('#btnSaveSurvey').addEventListener('click', async ()=> {
+      const title = el('#surveyTitle').value.trim();
+      if(!title) return serverAlert('Agrega un título a la encuesta', { title: 'Guardar' });
+      survey.title = title; survey.createdAt = survey.createdAt || timeNow(); survey.createdBy = usuario.nombre;
+      
+      serverShow({ loading: 'Guardando encuesta...', message: 'Hablando con el servidor...' });
+      try {
+        if(editing) await DB.updateSurvey(survey.id, survey);
+        else await DB.addSurvey(survey);
         modalRoot.style.display = 'none';
-        serverAlert('Eliminada', { title:'Borrar' });
+        await serverAlert('Encuesta guardada ✅', { title:'Listo' });
         navigate('formularios');
-      }, 600);
+      } catch(e) {
+        console.error(e);
+        modalRoot.style.display = 'none';
+        await serverAlert('Error guardando la encuesta', { title:'Error' });
+      }
     });
-  }
 
-  el('#btnPreview').addEventListener('click', ()=> showPreview(survey));
-
-  function renderQuestionList(){
-    const container = el('#questionList');
-    container.innerHTML = survey.questions.map((q, i) => questionCard(q, i+1)).join('');
-    container.querySelectorAll('[data-action]').forEach(btn => {
-      const action = btn.getAttribute('data-action');
-      const qid = btn.getAttribute('data-q');
-      btn.addEventListener('click', () => handleQAction(action, qid));
-    });
-    container.querySelectorAll('input[data-qtext]').forEach(inp => {
-      inp.addEventListener('input', (e)=> {
-        const id = inp.getAttribute('data-q');
-        const q = survey.questions.find(x=>x.id===id);
-        if(q) q.text = e.target.value;
+    if(editing){
+      el('#btnDeleteSurvey').addEventListener('click', async ()=> {
+        const ok = await serverConfirm('¿Eliminar encuesta?', { title:'Borrar' });
+        if(!ok) return;
+        serverShow({ loading:'Eliminando...', message:'Solicitando al servidor...' });
+        try {
+          await DB.deleteSurvey(editing.id);
+          modalRoot.style.display = 'none';
+          await serverAlert('Eliminada', { title:'Borrar' });
+          navigate('formularios');
+        } catch(e) {
+          console.error(e);
+          modalRoot.style.display = 'none';
+          await serverAlert('Error eliminando', { title:'Error' });
+        }
       });
-    });
-    container.querySelectorAll('input[data-opt]').forEach(inp => {
-      inp.addEventListener('input', (e)=> {
-        const id = inp.getAttribute('data-q');
-        const idx = +inp.getAttribute('data-idx');
-        const q = survey.questions.find(x=>x.id===id);
-        if(q) q.options[idx] = e.target.value;
-      });
-    });
-    container.querySelectorAll('button[data-addopt]').forEach(b=> {
-      b.addEventListener('click', ()=> {
-        const id = b.getAttribute('data-q');
-        const q = survey.questions.find(x=>x.id===id);
-        if(q){ q.options.push('Nueva opción'); renderQuestionList(); }
-      });
-    });
-  }
-
-  function questionCard(q, num){
-    if(q.type === 'text'){
-      return `<div style="padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,0.04); margin-bottom:8px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;"><strong>P${num} (Texto)</strong>
-          <div style="display:flex;gap:6px;">
-            <button data-action="moveUp" data-q="${q.id}" class="btn btn-ghost" style="padding:.3rem;">↑</button>
-            <button data-action="moveDown" data-q="${q.id}" class="btn btn-ghost" style="padding:.3rem;">↓</button>
-            <button data-action="changeType" data-q="${q.id}" class="btn btn-ghost" style="padding:.3rem;">Tipo</button>
-            <button data-action="delete" data-q="${q.id}" class="btn" style="background:#ef4444;color:#fff;padding:.3rem;">🗑</button>
-          </div>
-        </div>
-        <input data-q="${q.id}" data-qtext value="${escapeAttr(q.text)}" style="margin-top:8px;" />
-      </div>`;
-    } else {
-      return `<div style="padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,0.04); margin-bottom:8px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;"><strong>P${num} (${q.type === 'single' ? 'Única' : 'Múltiple'})</strong>
-          <div style="display:flex;gap:6px;">
-            <button data-action="moveUp" data-q="${q.id}" class="btn btn-ghost" style="padding:.3rem;">↑</button>
-            <button data-action="moveDown" data-q="${q.id}" class="btn btn-ghost" style="padding:.3rem;">↓</button>
-            <button data-action="changeType" data-q="${q.id}" class="btn btn-ghost" style="padding:.3rem;">Tipo</button>
-            <button data-action="delete" data-q="${q.id}" class="btn" style="background:#ef4444;color:#fff;padding:.3rem;">🗑</button>
-          </div>
-        </div>
-        <input data-q="${q.id}" data-qtext value="${escapeAttr(q.text)}" style="margin-top:8px;" />
-        <div style="margin-top:8px;">
-          ${q.options.map((opt, idx) => `<div style="display:flex;gap:8px;margin-bottom:6px;"><input data-q="${q.id}" data-opt data-idx="${idx}" value="${escapeAttr(opt)}"><button data-addopt data-q="${q.id}" class="btn btn-ghost">+</button></div>`).join('')}
-        </div>
-      </div>`;
     }
-  }
 
-  function handleQAction(action, qid){
-    const idx = survey.questions.findIndex(x=>x.id===qid);
-    if(idx === -1) return;
-    if(action === 'delete'){ survey.questions.splice(idx,1); renderQuestionList(); return; }
-    if(action === 'moveUp' && idx>0){ const a=survey.questions[idx-1]; survey.questions[idx-1]=survey.questions[idx]; survey.questions[idx]=a; renderQuestionList(); return; }
-    if(action === 'moveDown' && idx<survey.questions.length-1){ const a=survey.questions[idx+1]; survey.questions[idx+1]=survey.questions[idx]; survey.questions[idx]=a; renderQuestionList(); return; }
-    if(action === 'changeType'){ const q = survey.questions[idx]; q.type = (q.type === 'single' ? 'multiple' : q.type === 'multiple' ? 'text' : 'single'); if(q.type!=='text' && !q.options) q.options=['Opción 1']; renderQuestionList(); return; }
-  }
+    el('#btnPreview').addEventListener('click', ()=> showPreview(survey));
 
-  function renderMiniSaved(){
-    const ms = DB.loadSurveys().slice(0,6);
-    el('#miniSaved').innerHTML = ms.length ? `<ul>${ms.map(s=>`<li style="padding:6px 0;">${escapeHtml(s.title)} <button data-load="${s.id}" style="margin-left:8px;" class="btn btn-ghost small">Editar</button></li>`).join('')}</ul>` : '<p class="small">No hay guardadas</p>';
-    elAll('#miniSaved [data-load]').forEach(b => b.addEventListener('click', ()=> renderCreator(b.getAttribute('data-load'))));
-  }
+    function renderQuestionList(){
+      const container = el('#questionList');
+      container.innerHTML = survey.questions.map((q, i) => questionCard(q, i+1)).join('');
+      container.querySelectorAll('[data-action]').forEach(btn => {
+        const action = btn.getAttribute('data-action');
+        const qid = btn.getAttribute('data-q');
+        btn.addEventListener('click', () => handleQAction(action, qid));
+      });
+      container.querySelectorAll('input[data-qtext]').forEach(inp => {
+        inp.addEventListener('input', (e)=> {
+          const id = inp.getAttribute('data-q');
+          const q = survey.questions.find(x=>x.id===id);
+          if(q) q.text = e.target.value;
+        });
+      });
+      container.querySelectorAll('input[data-opt]').forEach(inp => {
+        inp.addEventListener('input', (e)=> {
+          const id = inp.getAttribute('data-q');
+          const idx = +inp.getAttribute('data-idx');
+          const q = survey.questions.find(x=>x.id===id);
+          if(q) q.options[idx] = e.target.value;
+        });
+      });
+      container.querySelectorAll('button[data-addopt]').forEach(b=> {
+        b.addEventListener('click', ()=> {
+          const id = b.getAttribute('data-q');
+          const q = survey.questions.find(x=>x.id===id);
+          if(q){ q.options.push('Nueva opción'); renderQuestionList(); }
+        });
+      });
+    }
+
+    function questionCard(q, num){
+      if(q.type === 'text'){
+        return `<div style="padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,0.04); margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;"><strong>P${num} (Texto)</strong>
+            <div style="display:flex;gap:6px;">
+              <button data-action="moveUp" data-q="${q.id}" class="btn btn-ghost" style="padding:.3rem;">↑</button>
+              <button data-action="moveDown" data-q="${q.id}" class="btn btn-ghost" style="padding:.3rem;">↓</button>
+              <button data-action="changeType" data-q="${q.id}" class="btn btn-ghost" style="padding:.3rem;">Tipo</button>
+              <button data-action="delete" data-q="${q.id}" class="btn" style="background:#ef4444;color:#fff;padding:.3rem;">🗑</button>
+            </div>
+          </div>
+          <input data-q="${q.id}" data-qtext value="${escapeAttr(q.text)}" style="margin-top:8px;" />
+        </div>`;
+      } else {
+        return `<div style="padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,0.04); margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;"><strong>P${num} (${q.type === 'single' ? 'Única' : 'Múltiple'})</strong>
+            <div style="display:flex;gap:6px;">
+              <button data-action="moveUp" data-q="${q.id}" class="btn btn-ghost" style="padding:.3rem;">↑</button>
+              <button data-action="moveDown" data-q="${q.id}" class="btn btn-ghost" style="padding:.3rem;">↓</button>
+              <button data-action="changeType" data-q="${q.id}" class="btn btn-ghost" style="padding:.3rem;">Tipo</button>
+              <button data-action="delete" data-q="${q.id}" class="btn" style="background:#ef4444;color:#fff;padding:.3rem;">🗑</button>
+            </div>
+          </div>
+          <input data-q="${q.id}" data-qtext value="${escapeAttr(q.text)}" style="margin-top:8px;" />
+          <div style="margin-top:8px;">
+            ${q.options.map((opt, idx) => `<div style="display:flex;gap:8px;margin-bottom:6px;"><input data-q="${q.id}" data-opt data-idx="${idx}" value="${escapeAttr(opt)}"><button data-addopt data-q="${q.id}" class="btn btn-ghost">+</button></div>`).join('')}
+          </div>
+        </div>`;
+      }
+    }
+
+    function handleQAction(action, qid){
+      const idx = survey.questions.findIndex(x=>x.id===qid);
+      if(idx === -1) return;
+      if(action === 'delete'){ survey.questions.splice(idx,1); renderQuestionList(); return; }
+      if(action === 'moveUp' && idx>0){ const a=survey.questions[idx-1]; survey.questions[idx-1]=survey.questions[idx]; survey.questions[idx]=a; renderQuestionList(); return; }
+      if(action === 'moveDown' && idx<survey.questions.length-1){ const a=survey.questions[idx+1]; survey.questions[idx+1]=survey.questions[idx]; survey.questions[idx]=a; renderQuestionList(); return; }
+      if(action === 'changeType'){ const q = survey.questions[idx]; q.type = (q.type === 'single' ? 'multiple' : q.type === 'multiple' ? 'text' : 'single'); if(q.type!=='text' && !q.options) q.options=['Opción 1']; renderQuestionList(); return; }
+    }
+
+    async function renderMiniSaved(){
+      const ms = (await DB.loadSurveys()).slice(0,6);
+      el('#miniSaved').innerHTML = ms.length ? `<ul>${ms.map(s=>`<li style="padding:6px 0;">${escapeHtml(s.title)} <button data-load="${s.id}" style="margin-left:8px;" class="btn btn-ghost small">Editar</button></li>`).join('')}</ul>` : '<p class="small">No hay guardadas</p>';
+      elAll('#miniSaved [data-load]').forEach(b => b.addEventListener('click', ()=> renderCreator(b.getAttribute('data-load'))));
+    }
+
+  })();
 }
 
-
-function renderList(){
-  const surveys = DB.loadSurveys();
+/* Listado de encuestas */
+async function renderList(){
+  const surveys = await DB.loadSurveys();
   contentArea.innerHTML = `
     <h3 style="margin:0 0 8px 0; font-weight:700;">Encuestas guardadas</h3>
     <div style="margin-top:12px;">
@@ -785,20 +884,29 @@ function renderList(){
     const ok = await serverConfirm('Eliminar encuesta?');
     if(!ok) return;
     serverShow({ loading:'Eliminando...', message:'Enviando petición al servidor...' });
-    setTimeout(()=> { DB.deleteSurvey(id); modalRoot.style.display='none'; serverAlert('Encuesta eliminada'); renderList(); }, 600);
+    try {
+      await DB.deleteSurvey(id);
+      modalRoot.style.display='none';
+      await serverAlert('Encuesta eliminada');
+      renderList();
+    } catch(e) {
+      console.error(e);
+      modalRoot.style.display='none';
+      await serverAlert('Error eliminando encuesta');
+    }
   }));
-  elAll('[data-share]').forEach(b => b.addEventListener('click', ()=> {
+  elAll('[data-share]').forEach(b => b.addEventListener('click', async ()=> {
     const id = b.getAttribute('data-share');
-    const s = DB.loadSurveys().find(x=>x.id===id);
+    const s = (await DB.loadSurveys()).find(x=>x.id===id);
     if(!s) return serverAlert('No encontrada');
     const payload = JSON.stringify(s);
     navigator.clipboard?.writeText(payload).then(()=> serverAlert('Encuesta copiada al portapapeles (JSON). Puedes pegarla en otro SmartForm.'));
   }));
 }
 
-
-function renderResponderList(){
-  const surveys = DB.loadSurveys();
+/* Responder lista */
+async function renderResponderList(){
+  const surveys = await DB.loadSurveys();
   contentArea.innerHTML = `
     <h3 style="margin:0 0 8px 0; font-weight:700;">Responder encuesta</h3>
     <div style="margin-top:12px;">
@@ -808,75 +916,83 @@ function renderResponderList(){
   elAll('[data-take]').forEach(b => b.addEventListener('click', ()=> renderTakeSurvey(b.getAttribute('data-take'))));
 }
 
+/* Tomar encuesta */
 function renderTakeSurvey(id){
-  const s = DB.loadSurveys().find(x=>x.id===id);
-  if(!s) return serverAlert('Encuesta no encontrada', { title:'Error' });
-  let answers = {};
-  contentArea.innerHTML = `
-    <div>
-      <h3 style="margin:0 0 6px 0; font-weight:700;">${escapeHtml(s.title)}</h3>
-      <p class="small">Autor: ${escapeHtml(s.createdBy)} • ${new Date(s.createdAt).toLocaleString()}</p>
-      <form id="takeForm" style="margin-top:12px; display:flex; flex-direction:column; gap:12px;"></form>
-      <div style="margin-top:6px; display:flex; gap:8px; align-items:center;">
-        <input id="responderName" placeholder="Tu nombre (opcional)" style="flex:1;">
-        <button id="submitResp" class="btn btn-primary">Enviar respuesta</button>
+  (async () => {
+    const s = (await DB.loadSurveys()).find(x=>x.id===id);
+    if(!s) return serverAlert('Encuesta no encontrada', { title:'Error' });
+    let answers = {};
+    contentArea.innerHTML = `
+      <div>
+        <h3 style="margin:0 0 6px 0; font-weight:700;">${escapeHtml(s.title)}</h3>
+        <p class="small">Autor: ${escapeHtml(s.createdBy)} • ${new Date(s.createdAt).toLocaleString()}</p>
+        <form id="takeForm" style="margin-top:12px; display:flex; flex-direction:column; gap:12px;"></form>
+        <div style="margin-top:6px; display:flex; gap:8px; align-items:center;">
+          <input id="responderName" placeholder="Tu nombre (opcional)" style="flex:1;">
+          <button id="submitResp" class="btn btn-primary">Enviar respuesta</button>
+        </div>
       </div>
-    </div>
-  `;
+    `;
 
-  const form = el('#takeForm');
-  s.questions.forEach((q, i) => {
-    const qElm = document.createElement('div');
-    qElm.style.padding = '10px';
-    qElm.style.border = '1px solid rgba(0,0,0,0.04)';
-    qElm.style.borderRadius = '8px';
-    qElm.innerHTML = `<div><strong>P${i+1}.</strong> ${escapeHtml(q.text)}</div>`;
-    if(q.type === 'text'){
-      const inp = document.createElement('input'); inp.className=''; inp.placeholder='Respuesta...'; inp.style.marginTop='8px';
-      inp.addEventListener('input', e=> answers[q.id] = e.target.value);
-      qElm.appendChild(inp);
-    } else {
-      const list = document.createElement('div'); list.style.marginTop='8px';
-      q.options.forEach((opt, idx)=>{
-        const wrapper = document.createElement('label'); wrapper.style.display='flex'; wrapper.style.alignItems='center'; wrapper.style.gap='8px';
-        const input = document.createElement('input');
-        input.type = q.type === 'single' ? 'radio' : 'checkbox';
-        input.name = 'q_'+q.id;
-        input.value = opt;
-        input.addEventListener('change', ()=>{
-          if(q.type === 'single') answers[q.id] = input.value;
-          else {
-            const checked = Array.from(document.querySelectorAll(`input[name="q_${q.id}"]`)).filter(n=>n.checked).map(n=>n.value);
-            answers[q.id] = checked;
-          }
+    const form = el('#takeForm');
+    s.questions.forEach((q, i) => {
+      const qElm = document.createElement('div');
+      qElm.style.padding = '10px';
+      qElm.style.border = '1px solid rgba(0,0,0,0.04)';
+      qElm.style.borderRadius = '8px';
+      qElm.innerHTML = `<div><strong>P${i+1}.</strong> ${escapeHtml(q.text)}</div>`;
+      if(q.type === 'text'){
+        const inp = document.createElement('input'); inp.className=''; inp.placeholder='Respuesta...'; inp.style.marginTop='8px';
+        inp.addEventListener('input', e=> answers[q.id] = e.target.value);
+        qElm.appendChild(inp);
+      } else {
+        const list = document.createElement('div'); list.style.marginTop='8px';
+        q.options.forEach((opt, idx)=>{
+          const wrapper = document.createElement('label'); wrapper.style.display='flex'; wrapper.style.alignItems='center'; wrapper.style.gap='8px';
+          const input = document.createElement('input');
+          input.type = q.type === 'single' ? 'radio' : 'checkbox';
+          input.name = 'q_'+q.id;
+          input.value = opt;
+          input.addEventListener('change', ()=>{
+            if(q.type === 'single') answers[q.id] = input.value;
+            else {
+              const checked = Array.from(document.querySelectorAll(`input[name="q_${q.id}"]`)).filter(n=>n.checked).map(n=>n.value);
+              answers[q.id] = checked;
+            }
+          });
+          wrapper.appendChild(input);
+          wrapper.appendChild(document.createTextNode(opt));
+          list.appendChild(wrapper);
         });
-        wrapper.appendChild(input);
-        wrapper.appendChild(document.createTextNode(opt));
-        list.appendChild(wrapper);
-      });
-      qElm.appendChild(list);
-    }
-    form.appendChild(qElm);
-  });
+        qElm.appendChild(list);
+      }
+      form.appendChild(qElm);
+    });
 
-  el('#submitResp').addEventListener('click', (ev)=> {
-    ev.preventDefault();
-    const responder = el('#responderName').value.trim() || usuario.nombre || 'Anon';
-    const resp = { id: uid('resp'), surveyId: s.id, responder, submittedAt: timeNow(), answers };
-    // simulate server send
-    serverShow({ loading: 'Enviando respuestas...', message: 'Comunicación con servidor...' });
-    setTimeout(()=> {
-      DB.addResponse(resp);
-      modalRoot.style.display = 'none';
-      serverAlert('Respuesta enviada. ¡Gracias!');
-      navigate('inicio');
-    }, 700);
-  });
+    el('#submitResp').addEventListener('click', async (ev)=> {
+      ev.preventDefault();
+      const responder = el('#responderName').value.trim() || usuario.nombre || 'Anon';
+      const resp = { id: uid('resp'), surveyId: s.id, responder, submittedAt: timeNow(), answers };
+      // simulate server send
+      serverShow({ loading: 'Enviando respuestas...', message: 'Comunicación con servidor...' });
+      try {
+        await DB.addResponse(resp);
+        modalRoot.style.display = 'none';
+        await serverAlert('Respuesta enviada. ¡Gracias!');
+        navigate('inicio');
+      } catch (e) {
+        console.error(e);
+        modalRoot.style.display = 'none';
+        await serverAlert('Error enviando respuesta');
+      }
+    });
+  })();
 }
 
-function renderReportes(){
-  const surveys = DB.loadSurveys();
-  const responses = DB.loadResponses();
+/* Reportes */
+async function renderReportes(){
+  const surveys = await DB.loadSurveys();
+  const responses = await DB.loadResponses();
   contentArea.innerHTML = `
     <h3 style="margin:0 0 8px 0; font-weight:700;">Reportes</h3>
     <div style="margin-top:12px;">
@@ -904,9 +1020,9 @@ function renderReportes(){
   }));
 }
 
-function showReportDetail(surveyId){
-  const s = DB.loadSurveys().find(x=>x.id===surveyId);
-  const resps = DB.loadResponses().filter(r=>r.surveyId===surveyId);
+async function showReportDetail(surveyId){
+  const s = (await DB.loadSurveys()).find(x=>x.id===surveyId);
+  const resps = (await DB.loadResponses()).filter(r=>r.surveyId===surveyId);
   let html = `<h4 style="margin:0 0 8px 0;">${escapeHtml(s.title)}</h4><p class="small">Respuestas: ${resps.length}</p>`;
   if(resps.length === 0) html += `<p class="small mt-2">Aún no hay respuestas.</p>`;
   else {
@@ -930,7 +1046,7 @@ function showReportDetail(surveyId){
   modalCancel.onclick = ()=> { modalRoot.style.display='none'; };
 }
 
-
+/* Preview */
 function showPreview(survey){
   let html = `<h4 style="margin:0 0 8px 0;">${escapeHtml(survey.title)}</h4>`;
   survey.questions.forEach((q,i)=>{
@@ -945,7 +1061,7 @@ function showPreview(survey){
   modalRoot.style.display = 'flex';
 }
 
-
+/* Help modal */
 function showHelpModal(){
   const tips = [
     'Ayuda para el login: Para continuar escribe tus datos en los campos y confirma el acceso Si algo no avanza revisa que la información esté completa y vuelve a intentar.  Ayuda del sistema:  usa el menú para moverte entre las secciones Crea nuevas encuestas y agrega preguntas con el botón de añadirComparte el enlace para que otras personas respondan Consulta los resultados en la sección de respuestas y ajusta tu diseño en cualquier momento',
@@ -961,9 +1077,8 @@ function showHelpModal(){
   modalRoot.style.display = 'flex';
 }
 
-
+/* Perfil (mantengo localStorage para fotos/perfil) */
 function renderPerfil(){
-  
   const key = 'sf_profile_' + (usuario.correo || 'anon');
   const stored = JSON.parse(localStorage.getItem(key) || 'null');
   usuario = Object.assign(usuario, stored || {});
@@ -1026,6 +1141,7 @@ function renderPerfil(){
   });
 }
 
+/* Service worker registration (igual) */
 if('serviceWorker' in navigator){
   const sw = `self.addEventListener('install', e=>{ self.skipWaiting(); });
   self.addEventListener('activate', e=>{ self.clients.claim(); });
@@ -1035,25 +1151,26 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.register(url).catch(()=>{/* silence */});
 }
 
-
+/* misc */
 document.addEventListener('DOMContentLoaded', ()=> {
   document.addEventListener('keydown', e => { if(e.ctrlKey && e.key.toLowerCase()==='k'){ elAll('.nav-item')[0].classList.toggle('active'); } });
-
 });
 document.getElementById('videoLogin').style.display='block';
 
 function updateFabVisibility() {
-  const isLogin = document.getElementById("loginSection").classList.contains("active");
+  const isLogin = document.getElementById("loginSection") && document.getElementById("loginSection").classList.contains("active");
   document.getElementById("fabHelp").style.display = isLogin ? "none" : "flex";
 }
 
 function activateSection(id) {
   document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+  const elSec = document.getElementById(id);
+  if(elSec) elSec.classList.add('active');
   updateFabVisibility();
 }
-
 updateFabVisibility();
+
+/* Weather loader (igual) */
 async function loadDashboardWeather(){
   const LAT=27.486, LON=-109.939, TZ="America/Hermosillo";
 
@@ -1079,20 +1196,52 @@ async function loadDashboardWeather(){
       80:"🌦️",95:"⛈️",96:"⛈️",99:"⛈️"
     };
 
-    const icon = icons[c.weather_code] || "⛅";
+    const icon = c && icons[c.weather_code] ? icons[c.weather_code] : "⛅";
 
-    document.getElementById("w_icon").textContent = icon;
-    document.getElementById("w_temp").textContent = Math.round(c.temperature_2m) + "°C";
-    document.getElementById("w_desc").textContent = "Clima actual";
-    document.getElementById("w_humidity").textContent = c.relative_humidity_2m + "%";
-    document.getElementById("w_wind").textContent = Math.round(c.wind_speed_10m) + " km/h";
-    document.getElementById("w_maxmin").textContent =
+    if(document.getElementById("w_icon")) document.getElementById("w_icon").textContent = icon;
+    if(document.getElementById("w_temp")) document.getElementById("w_temp").textContent = Math.round(c.temperature_2m) + "°C";
+    if(document.getElementById("w_desc")) document.getElementById("w_desc").textContent = "Clima actual";
+    if(document.getElementById("w_humidity")) document.getElementById("w_humidity").textContent = c.relative_humidity_2m + "%";
+    if(document.getElementById("w_wind")) document.getElementById("w_wind").textContent = Math.round(c.wind_speed_10m) + " km/h";
+    if(document.getElementById("w_maxmin")) document.getElementById("w_maxmin").textContent =
       `${Math.round(d.temperature_2m_max[0])}/${Math.round(d.temperature_2m_min[0])} °C`;
 
   } catch (e) {
     console.error("Error clima:", e);
   }
 }
+
 </script>
+
+<!-- Firebase compat SDKs (no modules, compatibles con este archivo) -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+<script>
+  // Tu configuración (ya la tenías). Si la quieres ocultar, utiliza env/server later.
+  const firebaseConfig = {
+    apiKey: "AIzaSyCBiiY9GSlF-7r3wjBwcLCq5jyxKVOjAAE",
+    authDomain: "smartform-ee4bb.firebaseapp.com",
+    projectId: "smartform-ee4bb",
+    storageBucket: "smartform-ee4bb.firebasestorage.app",
+    messagingSenderId: "590912576678",
+    appId: "1:590912576678:web:5dd2406d46b31ada5b6867",
+    measurementId: "G-07XSZSSCQ5"
+  };
+
+  // Inicializar Firebase (compat)
+  try {
+    firebase.initializeApp(firebaseConfig);
+    // firebase.analytics(); // opcional
+  } catch(e) {
+    console.warn("firebase initialize error (si ya está inicializado está bien):", e);
+  }
+
+  // Nota: DB arriba ya usa firebase.firestore() por eso no necesitamos exponer db global aquí.
+  // Si quieres, puedes exponerlo:
+  window.firestore = firebase.firestore();
+</script>
+
 </body>
 </html>
+
