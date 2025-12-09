@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SmartForm_2025 </title>
+<title>SmartFouh </title>
 <script src="https://cdn.tailwindcss.com">document.getElementById('videoLogin').style.display='block';
 </script>
 <meta name="theme-color" content="#dc2626">
 <style>
  
 :root{
-  --brand: #1e3a8a; 
-  --accent: #d4af37; 
-  --bg: #f5f7fa; 
+  --brand: #4a2c2a;       
+  --accent: #e89c2c;      
+  --bg: #f2ebe2;          
   --card: #ffffff;
-  --text: #1f2937; 
-  --muted: #6b7280;
+  --text: #3a2a28;        
+  --muted: #7c706e;       
   --accent-contrast: #ffffff;
 }
 
@@ -218,31 +218,49 @@ body {
   position: fixed;
   bottom: 20px;
   right: 20px;
-  width: 48px;
-  height: 48px;
+  width: 58px;
+  height: 58px;
   display: flex;
   justify-content: center;
   align-items: center;
-  border-radius: 50%;
-  background: #007bff !important;
-  color: white;
 
-  font-size: 24px;
+  border-radius: 50%;
+  background: #4a2c2a !important; /* Café oscuro (SMARTFUH) */
+  color: #ffffff;
+
+  font-size: 26px;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+
+  box-shadow: 0 10px 24px rgba(0,0,0,0.25);
   z-index: 9999;
+
+  transition: 
+    transform 0.25s ease,
+    background 0.25s ease,
+    box-shadow 0.25s ease;
+
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+
+#fabHelp:hover {
+  transform: scale(1.10) translateY(-4px);
+  background: #e89c2c !important; /* Naranja (SMARTFUH) */
+  color: #000;
+  box-shadow: 0 14px 32px rgba(0,0,0,0.30);
+}
+
 #loginSection.active ~ #fabHelp {
   display: none !important;
 }
+
 @media (max-width: 700px) {
   #weatherHeader { 
     flex-direction: column; 
     text-align: center;
   }
 }
+
 
 
 
@@ -275,10 +293,10 @@ body {
   
   <nav class="side-nav" style="display:none;" role="navigation" aria-label="Menú principal">
     <div class="brand" style="padding:0 6px;">
-      <div style="width:36px;height:36px;border-radius:8px;background:var(--accent-contrast);display:flex;align-items:center;justify-content:center;color:var(--brand);font-weight:700;">SF</div>
+      <div style="width:36px;height:36px;border-radius:8px;background:var(--accent-contrast);display:flex;align-items:center;justify-content:center;color:var(--brand);font-weight:700;">SH</div>
       <div style="margin-left:8px;">
-        <div style="font-weight:700;">SmartForm</div>
-        <div class="small" style="opacity:.9;">Encuestas</div>
+        <div style="font-weight:700;">SmartFuh</div>
+        <div class="small" style="opacity:.9;">Tu elecció,su hogar</div>
       </div>
     </div>
 
@@ -332,10 +350,10 @@ style="
 <div id="loginPage" class="min-h-screen flex items-center justify-center p-6">
       <div class="card w-full max-w-md">
         <div class="flex justify-center">
-    <img src="1234.png" alt="Imagen" class="w-40">
+    <img src="1234.png" alt="imagen" class="w-40">
 </div>
 
-        <h1 class="text-2xl font-bold mb-2 text-center" id="titleMain">SmartForm</h1>
+        <h1 class="text-2xl font-bold mb-2 text-center" id="titleMain">SmartFuh</h1>
         <p class="small mb-4">Inicia sesión para continuar. Usa correo institucional si eres maestro.</p>
         <label>Nombre completo
           <input id="nombre" placeholder="Nombre completo" />
@@ -354,7 +372,7 @@ style="
           <button id="btnLogin" class="btn btn-primary" style="flex:1;">Iniciar sesión</button>
           <button id="btnDemo" class="btn btn-ghost">Demo</button>
         </div>
-        <p class="small mt-3">El sitio no funciona con base de datos si no con LocalStore</p>
+        <p class="small mt-3"></p>
       </div>
     </div>
 
